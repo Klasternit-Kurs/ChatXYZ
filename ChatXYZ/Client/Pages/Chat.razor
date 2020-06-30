@@ -1,0 +1,58 @@
+﻿@page "/chat"
+@using ChatXYZ.Shared
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager NM
+
+@if (!Ulogovan)
+{
+	<EditForm Model="@trenutniKorisnik" OnSubmit="SlanjeKorisnickog">
+		<p><label>Unesite korisnicko: </label><InputText @bind-Value="trenutniKorisnik.Username"/></p>
+		<button class="btn-primary" type="submit">Pokreni</button>
+	</EditForm>
+} else
+{
+	@foreach(Poruka p in PrimljenePoruke)
+	{
+		<p>@p.Vreme --- @p.Posiljaoc.Username: @p.Sadrzaj</p>
+	}
+	<EditForm Model="trenutnaPoruka" OnSubmit="SlanjePoruke">
+		<p><InputText @bind-Value="trenutnaPoruka.Sadrzaj" /><button class="alert-danger" type="submit">Posalji</button></p>
+	</EditForm>
+}
+
+@code 
+{
+	public Korisnik trenutniKorisnik = new Korisnik();
+	public Poruka trenutnaPoruka = new Poruka();
+	public HubConnection HC;
+
+	private bool Ulogovan;
+	public List<Poruka> PrimljenePoruke = new List<Poruka>();
+
+	protected override async Task OnInitializedAsync()
+	{
+		HC = new HubConnectionBuilder().WithUrl(NM.ToAbsoluteUri("chat")).Build();
+
+		HC.On<Poruka>("PorukaKaKlijentu", (zklj) => 
+								{
+									PrimljenePoruke.Add(zklj);
+									StateHasChanged();
+								});
+
+		await HC.StartAsync();
+	}
+
+	public void SlanjeKorisnickog()
+	{
+		Ulogovan = true;
+		StateHasChanged();
+	}
+
+	public void SlanjePoruke()
+	{
+		trenutnaPoruka.Posiljaoc = trenutniKorisnik;
+		trenutnaPoruka.Vreme = DateTime.Now;
+		HC.SendAsync("PrimiPoruku", trenutnaPoruka);
+		trenutnaPoruka = new Poruka();
+	}
+}
